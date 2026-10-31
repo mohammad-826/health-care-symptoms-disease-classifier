@@ -22,8 +22,13 @@ st.set_page_config(page_title=APP_TITLE, page_icon="🏥")
 # MODEL
 # ----------------------------------
 
-@st.cache_resource(show_spinner="Loading the model (the first run can take a while)...")
+@st.cache_resource(show_spinner="Loading the model...")
 def load_model():
+    """Download the model from Hugging Face once and keep it in memory.
+
+    The model is now only a few MB (TF-IDF + Logistic Regression),
+    so it fits easily inside Streamlit Cloud's memory limit.
+    """
     path = hf_hub_download(repo_id=REPO_ID, filename=MODEL_FILENAME, token=HF_TOKEN)
     return joblib.load(path)
 
@@ -79,7 +84,7 @@ if analyze:
                     st.progress(float(score))
 
                 st.warning(
-                    "This model scored only about 3.6% accuracy on its test set "
+                    "This model scores only about 3-4% accuracy on its test set "
                     "(30 diseases, so random guessing is about 3.3%). Treat results as a demo."
                 )
         except Exception as e:
