@@ -1,5 +1,4 @@
-Claude
-App · PY
+
 import base64
 import html
 import os
@@ -616,11 +615,5 @@ md(
   accuracy, roughly the level of random guessing. The dataset's symptoms appear to carry little
   real signal about the disease label, so this app is a deployment demo rather than a useful predictor.
 </div>
-<div class="footer">💙 {APP_TITLE} · Developed by {Muhammad} · <a href="{GITHUB_URL}" target="_blank" style="color:#0b4fff;text-decoration:none;font-weight:600">GitHub</a><br>Built with Python, Streamlit &amp; scikit-learn · Educational use only</div>
+<div class="footer">💙 {APP_TITLE} · Developed by {DEVELOPER_NAME} · <a href="{GITHUB_URL}" target="_blank" style="color:#0b4fff;text-decoration:none;font-weight:600">GitHub</a><br>Built with Python, Streamlit &amp; scikit-learn · Educational use only</div>
 """
-)
- 
-
-
-
-
