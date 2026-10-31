@@ -1,9 +1,9 @@
 import html
 import os
 
+import joblib
 import streamlit as st
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from huggingface_hub import hf_hub_download
 
 
 # ----------------------------------
@@ -17,11 +17,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Replace with YOUR model repo id if you are deploying your own model
-MODEL_ID = "Muh340/healthcare-symptoms-disease-classifier"
+# Your model on the Hugging Face Hub (scikit-learn pipeline saved with joblib)
+REPO_ID = "Muh340/healthcare-symptoms-disease-classifier"
+MODEL_FILENAME = "healthcare_disease_model.pkl"
 
-# Optional: only needed if your model repo is private/gated.
-# Set HF_TOKEN in Spaces -> Settings -> Secrets (or Streamlit Cloud secrets).
+# Only needed if the model repo is private. Add it as a secret/env variable.
 HF_TOKEN = os.environ.get("HF_TOKEN") or None
 
 
@@ -109,53 +109,48 @@ st.markdown(
 # MODEL LOADING
 # ----------------------------------
 
-@st.cache_resource(show_spinner="Loading your AI model...")
+@st.cache_resource(show_spinner="Downloading and loading the model (first run can take a while)...")
 def load_model():
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, token=HF_TOKEN, use_fast=False)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        MODEL_ID, token=HF_TOKEN
+    """Download the .pkl from the Hugging Face Hub (cached) and load it."""
+    model_path = hf_hub_download(
+        repo_id=REPO_ID,
+        filename=MODEL_FILENAME,
+        token=HF_TOKEN,
     )
-    model.eval()
-    return tokenizer, model
+    return joblib.load(model_path)
 
 
 # ----------------------------------
-# HELPERS
+# PREDICTION
 # ----------------------------------
 
-def get_label(labels, idx):
-    """id2label keys can be int or str depending on how the config was saved."""
-    return labels.get(idx, labels.get(str(idx), f"Class {idx}"))
+def get_classes(model):
+    """Pipeline exposes classes_ from its final step; fall back just in case."""
+    if hasattr(model, "classes_"):
+        return list(model.classes_)
+    return list(model.named_steps["classifier"].classes_)
 
 
-def predict_symptoms(text, tokenizer, model):
-    inputs = tokenizer(
-        text,
-        return_tensors="pt",
-        truncation=True,
-        padding=True,
-        max_length=256,
-    )
+def has_known_words(model, text):
+    """True if at least one word in the text exists in the TF-IDF vocabulary."""
+    try:
+        return model.named_steps["tfidf"].transform([text]).nnz > 0
+    except Exception:
+        return True  # can't check, so don't block the prediction
 
-    # Some tokenizers return token_type_ids that certain models don't accept
-    if "token_type_ids" in inputs and not getattr(
-        model.config, "type_vocab_size", 0
-    ):
-        inputs.pop("token_type_ids")
 
-    with torch.no_grad():
-        outputs = model(**inputs)
-        probabilities = torch.softmax(outputs.logits, dim=-1)
+def predict_symptoms(text, model):
+    # The notebook trained the pipeline on the "Symptoms" text column only,
+    # so it takes a list of strings.
+    probabilities = model.predict_proba([text])[0]
+    classes = get_classes(model)
 
-    predicted_id = probabilities.argmax(dim=-1).item()
-    confidence = probabilities[0][predicted_id].item()
-    predicted_label = get_label(model.config.id2label, predicted_id)
-
-    return predicted_label, confidence, probabilities[0]
+    best = int(probabilities.argmax())
+    return classes[best], float(probabilities[best]), classes, probabilities
 
 
 def clear_text():
-    """Callback for the Clear button (runs before the widgets are re-drawn)."""
+    """Callback for the Clear button (runs before widgets are re-drawn)."""
     st.session_state["symptoms_input"] = ""
 
 
@@ -172,7 +167,7 @@ with st.sidebar:
     page = st.radio("Choose a page", ["🏠 Home", "ℹ️ About", "📋 Disclaimer"])
 
     st.divider()
-    st.caption("Powered by Hugging Face Transformers")
+    st.caption("Scikit-learn model hosted on Hugging Face")
     st.caption("Educational project")
 
 
@@ -186,7 +181,7 @@ if page == "🏠 Home":
         """
     <div class="main-title">
         <h1>🏥 HealthAI Classifier</h1>
-        <p>Artificial Intelligence Based Symptoms Classification</p>
+        <p>Machine Learning Based Symptoms Classification</p>
         <p>Describe symptoms and explore the model's predicted category.</p>
     </div>
     """,
@@ -196,9 +191,9 @@ if page == "🏠 Home":
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.info("🤖 AI Powered\n\nTransformer-based model")
+        st.info("🌲 Random Forest\n\nTF-IDF + scikit-learn")
     with col2:
-        st.success("⚡ Smart Processing\n\nAutomated text classification")
+        st.success("⚡ Fast Processing\n\nAutomated text classification")
     with col3:
         st.warning("📊 Prediction\n\nModel-generated category")
 
@@ -209,18 +204,18 @@ if page == "🏠 Home":
         """
     <div class="info-card">
         <b>How to use this application?</b><br>
-        Describe your symptoms using clear and simple sentences.
+        List your symptoms separated by commas, for example:
+        <i>fever, sore throat, shortness of breath</i>.
         Then click the Analyze button to see the model output.
     </div>
     """,
         unsafe_allow_html=True,
     )
 
-    # The key lets the Clear callback reset the text box
     symptoms = st.text_area(
         "Describe your symptoms:",
         key="symptoms_input",
-        placeholder="Example: I have a headache and feel tired...",
+        placeholder="Example: fever, headache, cough",
         height=150,
         max_chars=2000,
     )
@@ -240,10 +235,20 @@ if page == "🏠 Home":
 
         else:
             try:
-                with st.spinner("🤖 AI is processing your text..."):
-                    tokenizer, model = load_model()
-                    prediction, confidence, probabilities = predict_symptoms(
-                        symptoms, tokenizer, model
+                model = load_model()
+
+                if not has_known_words(model, symptoms):
+                    st.warning(
+                        "None of the words you entered match the model's "
+                        "vocabulary (check spelling), so any result below "
+                        "would be arbitrary. Try common symptom names such as "
+                        "'fever', 'cough' or 'back pain'."
+                    )
+                    st.stop()
+
+                with st.spinner("🤖 Analyzing your text..."):
+                    prediction, confidence, classes, probabilities = predict_symptoms(
+                        symptoms, model
                     )
 
                 st.markdown("---")
@@ -261,7 +266,7 @@ if page == "🏠 Home":
 
                 st.write("")
                 st.subheader("Model Confidence")
-                st.progress(float(confidence))
+                st.progress(min(max(confidence, 0.0), 1.0))
                 st.metric("Confidence Score", f"{confidence * 100:.2f}%")
 
                 st.caption(
@@ -269,18 +274,24 @@ if page == "🏠 Home":
                     "not the probability that you have a disease."
                 )
 
-                st.subheader("Class Probabilities")
+                st.subheader("Top 5 Class Probabilities")
 
-                labels = model.config.id2label
-                results = [
-                    (get_label(labels, i), score)
-                    for i, score in enumerate(probabilities.tolist())
-                ]
-                results.sort(key=lambda x: x[1], reverse=True)
+                results = sorted(
+                    zip(classes, probabilities.tolist()),
+                    key=lambda x: x[1],
+                    reverse=True,
+                )
 
                 for label, score in results[:5]:
                     st.write(f"**{label}** — {score * 100:.2f}%")
-                    st.progress(float(score))
+                    st.progress(min(max(score, 0.0), 1.0))
+
+                st.warning(
+                    "Reliability note: on the held-out test set this model "
+                    "scored about 3.6% accuracy across 30 diseases, which is "
+                    "close to random guessing (about 3.3%). Treat the output "
+                    "as a demo only."
+                )
 
                 st.info(
                     "This is an experimental AI classification result. "
@@ -304,20 +315,30 @@ elif page == "ℹ️ About":
         """
     HealthAI is an educational machine learning project.
 
-    It uses a trained Hugging Face model to classify
-    text descriptions of symptoms into predicted categories.
+    It uses a scikit-learn pipeline (TF-IDF text features followed by a
+    Random Forest classifier) trained on the Kaggle
+    *Healthcare Symptoms-Disease Classification* dataset to predict one of
+    30 disease categories from a text list of symptoms.
 
     **Technologies used:**
 
     - Python
     - Streamlit
-    - PyTorch
-    - Hugging Face Transformers
+    - scikit-learn
+    - Hugging Face Hub
     """
     )
 
+    st.warning(
+        "On its test split (5,000 samples, 30 classes) the model reached "
+        "about 3.6% accuracy, roughly the level of random guessing. "
+        "The dataset's symptoms appear to carry little real signal about "
+        "the disease label, so this app is a deployment demo rather than "
+        "a useful predictor."
+    )
+
     st.markdown(
-        f"[View trained model on Hugging Face](https://huggingface.co/{MODEL_ID})"
+        f"[View trained model on Hugging Face](https://huggingface.co/{REPO_ID})"
     )
 
 
@@ -354,6 +375,6 @@ elif page == "📋 Disclaimer":
 st.markdown("---")
 
 st.markdown(
-    "<center>💙 HealthAI | Built with Python, Streamlit & Hugging Face</center>",
+    "<center>💙 HealthAI | Built with Python, Streamlit & scikit-learn</center>",
     unsafe_allow_html=True,
 )
