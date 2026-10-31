@@ -1,82 +1,84 @@
+Claude
+App · PY
 import base64
 import html
 import os
 from pathlib import Path
-
+ 
 import joblib
 import streamlit as st
 from huggingface_hub import hf_hub_download
-
-
+ 
+ 
 # ----------------------------------
 # PAGE CONFIGURATION
 # ----------------------------------
-
+ 
 APP_TITLE = "Health-Care Symptoms Classifier"
 DEVELOPER_NAME = "Muhammad"
 GITHUB_USER = "mohammad-826"  # change if your GitHub username is different
 GITHUB_URL = f"https://github.com/{GITHUB_USER}"
 HF_PROFILE_URL = "https://huggingface.co/Muh340"
-
+ 
 st.set_page_config(
     page_title=APP_TITLE,
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-
+ 
 # Your model on the Hugging Face Hub (scikit-learn pipeline saved with joblib)
 REPO_ID = "Muh340/healthcare-symptoms-disease-classifier"
 MODEL_FILENAME = "healthcare_disease_model.pkl"
-
+ 
 # Only needed if the model repo is private. Add it as a secret/env variable.
 HF_TOKEN = os.environ.get("HF_TOKEN") or None
-
+ 
 APP_DIR = Path(__file__).parent
-
+ 
 # Optional hero photo: put your own image at assets/hero.jpg (or .png/.webp).
 # If none is found, a built-in illustration is used instead.
 HERO_FILES = ["hero.jpg", "hero.jpeg", "hero.png", "hero.webp"]
-
+ 
 EXAMPLES = [
     "fever, back pain, shortness of breath",
     "insomnia, back pain, weight loss",
     "sore throat, vomiting, diarrhea",
 ]
-
-
+ 
+ 
 # ----------------------------------
 # CUSTOM DESIGN
 # ----------------------------------
-
+ 
 CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700;800&display=swap');
-
+ 
 html { scroll-behavior: smooth; }
-
+ 
 .stApp { background: #eef2f7; }
-
+ 
 header[data-testid="stHeader"], #MainMenu, footer,
 [data-testid="stSidebar"], [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapsedControl"], [data-testid="stToolbar"] {
     display: none !important;
 }
-
+ 
 .block-container {
     max-width: 1180px;
     padding: 1.2rem 1.5rem 3rem;
 }
-
+ 
 .hc, .hc * {
     font-family: 'Work Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
     box-sizing: border-box;
 }
-
+ 
 .stApp textarea, .stApp label p, .stApp button p {
     font-family: 'Work Sans', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
 }
-
+ 
 /* ---------- NAV ---------- */
 .hc .nav {
     display: flex; align-items: center; justify-content: space-between;
@@ -96,7 +98,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
     color: #475569; text-decoration: none; font-weight: 500; font-size: 15px;
 }
 .hc .nav-links a:hover { color: #0b4fff; }
-
+ 
 /* ---------- BUTTON LINKS ---------- */
 .hc .btn {
     display: inline-block; padding: 14px 28px; border-radius: 999px;
@@ -108,7 +110,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
 .hc .btn-primary:hover { background: #0840d1; }
 .hc .btn-light { background: #fff; color: #0f1b3d !important; }
 .hc .btn-light:hover { box-shadow: 0 8px 20px rgba(15, 27, 61, .14); }
-
+ 
 /* ---------- HERO ---------- */
 .hc .hero {
     display: grid; grid-template-columns: 1.05fr .95fr;
@@ -146,7 +148,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
     display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 .hc .hero-art img { width: 100%; max-width: 520px; }
-
+ 
 /* ---------- STATS ---------- */
 .hc .stats {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 22px 0 8px;
@@ -157,7 +159,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
 }
 .hc .stat b { display: block; font-size: 26px; color: #0b4fff; font-weight: 700; }
 .hc .stat span { font-size: 14px; color: #64748b; }
-
+ 
 /* ---------- SECTIONS ---------- */
 .hc .section-head { margin: 46px 0 18px; }
 .hc .eyebrow {
@@ -169,7 +171,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
     font-size: 32px; font-weight: 700; color: #0f1b3d; letter-spacing: -0.01em;
 }
 .hc .section-head p { margin: 0; color: #64748b; font-size: 16px; max-width: 620px; }
-
+ 
 .hc .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .hc .card {
     background: #fff; border-radius: 20px; padding: 28px;
@@ -186,7 +188,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
 }
 .hc .card p { margin: 0; color: #64748b; line-height: 1.6; font-size: 15px; }
 .hc .card a { color: #0b4fff; font-weight: 600; text-decoration: none; }
-
+ 
 /* ---------- INPUT WIDGETS ---------- */
 .stTextArea textarea {
     border-radius: 16px !important; border: 1.5px solid #cbd5e1 !important;
@@ -197,7 +199,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
     border-color: #0b4fff !important; box-shadow: 0 0 0 3px rgba(11, 79, 255, .15) !important;
 }
 .stTextArea label p { font-weight: 600 !important; color: #0f1b3d !important; }
-
+ 
 .stButton, .stButton button { width: 100%; }
 .stButton button {
     border-radius: 999px; padding: .7rem 1.4rem; font-weight: 600;
@@ -211,7 +213,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
 .stButton button[data-testid="stBaseButton-primary"]:hover { background: #0840d1; color: #fff; }
 .stButton button[kind="primary"] p,
 .stButton button[data-testid="stBaseButton-primary"] p { color: #fff !important; }
-
+ 
 .stButton button[kind="secondary"],
 .stButton button[data-testid="stBaseButton-secondary"] {
     background: #fff; color: #0f1b3d; border: 1px solid #dbe2ea;
@@ -222,7 +224,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
 }
 .stButton button[kind="secondary"] p,
 .stButton button[data-testid="stBaseButton-secondary"] p { color: inherit !important; }
-
+ 
 /* ---------- RESULTS ---------- */
 .hc .result {
     background: #fff; border-radius: 22px; padding: 34px; text-align: center;
@@ -254,19 +256,19 @@ header[data-testid="stHeader"], #MainMenu, footer,
 .hc .bar-track { background: #e8eef7; border-radius: 999px; height: 10px; overflow: hidden; }
 .hc .bar-fill { background: linear-gradient(90deg, #0b4fff, #4f8bff); height: 100%; border-radius: 999px; }
 .hc .bars small { color: #94a3b8; font-size: 12px; }
-
+ 
 .hc .callout {
     border-radius: 16px; padding: 16px 20px; margin-top: 18px;
     font-size: 15px; line-height: 1.55;
 }
 .hc .callout-warn { background: #fff7e6; color: #8a5a00; border: 1px solid #ffe2a8; }
 .hc .callout-info { background: #e8f1ff; color: #1e3a8a; border: 1px solid #c7dbff; }
-
+ 
 .hc .footer {
     text-align: center; color: #64748b; font-size: 14px;
     margin-top: 56px; padding-top: 24px; border-top: 1px solid #dbe2ea;
 }
-
+ 
 .hc .by {
     margin-top: 26px; font-size: 14px; color: #475569;
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -283,7 +285,7 @@ header[data-testid="stHeader"], #MainMenu, footer,
 .hc .card-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
 .hc .card .btn-primary { color: #fff !important; }
 .hc .card .btn-light { background: #eef2f7; }
-
+ 
 @media (max-width: 860px) {
     .hc .brand { font-size: 16px; }
     .hc .nav .btn { display: none; }
@@ -296,10 +298,10 @@ header[data-testid="stHeader"], #MainMenu, footer,
 }
 </style>
 """
-
+ 
 st.markdown(CSS, unsafe_allow_html=True)
-
-
+ 
+ 
 def md(markup):
     """Render custom HTML. Blank lines/indentation are stripped so Markdown
     never mistakes the HTML for a code block."""
@@ -307,12 +309,12 @@ def md(markup):
         line.strip() for line in markup.strip().splitlines() if line.strip()
     )
     st.markdown(f'<div class="hc">{cleaned}</div>', unsafe_allow_html=True)
-
-
+ 
+ 
 # ----------------------------------
 # HERO VISUAL (photo if provided, else illustration)
 # ----------------------------------
-
+ 
 FALLBACK_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480">
 <defs><filter id="s" x="-20%" y="-20%" width="140%" height="150%">
 <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0f1b3d" flood-opacity="0.18"/>
@@ -331,8 +333,8 @@ FALLBACK_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480">
 <circle cx="520" cy="330" r="20" fill="#0b4fff" opacity="0.18"/>
 <circle cx="95" cy="350" r="10" fill="#0b4fff" opacity="0.30"/>
 </svg>"""
-
-
+ 
+ 
 @st.cache_data(show_spinner=False)
 def hero_visual():
     for name in HERO_FILES:
@@ -352,12 +354,12 @@ def hero_visual():
         f'<img src="data:image/svg+xml;base64,{svg}" alt="Health illustration">'
         "</div>"
     )
-
-
+ 
+ 
 # ----------------------------------
 # MODEL LOADING + PREDICTION
 # ----------------------------------
-
+ 
 @st.cache_resource(show_spinner="Downloading and loading the model (first run can take a while)...")
 def load_model():
     """Download the .pkl from the Hugging Face Hub (cached) and load it."""
@@ -367,45 +369,45 @@ def load_model():
         token=HF_TOKEN,
     )
     return joblib.load(model_path)
-
-
+ 
+ 
 def get_classes(model):
     """Pipeline exposes classes_ from its final step; fall back just in case."""
     if hasattr(model, "classes_"):
         return list(model.classes_)
     return list(model.named_steps["classifier"].classes_)
-
-
+ 
+ 
 def has_known_words(model, text):
     """True if at least one word in the text exists in the TF-IDF vocabulary."""
     try:
         return model.named_steps["tfidf"].transform([text]).nnz > 0
     except Exception:
         return True  # can't check, so don't block the prediction
-
-
+ 
+ 
 def predict_symptoms(text, model):
     # The notebook trained the pipeline on the "Symptoms" text column only,
     # so it takes a list of strings.
     probabilities = model.predict_proba([text])[0]
     classes = get_classes(model)
-
+ 
     best = int(probabilities.argmax())
     return classes[best], float(probabilities[best]), classes, probabilities
-
-
+ 
+ 
 def clear_text():
     st.session_state["symptoms_input"] = ""
-
-
+ 
+ 
 def set_example(text):
     st.session_state["symptoms_input"] = text
-
-
+ 
+ 
 # ----------------------------------
 # NAVBAR + HERO
 # ----------------------------------
-
+ 
 md(
     f"""
 <div class="nav" id="top">
@@ -440,12 +442,12 @@ md(
 </div>
 """
 )
-
-
+ 
+ 
 # ----------------------------------
 # SYMPTOM CHECKER
 # ----------------------------------
-
+ 
 md(
     """
 <div id="checker"></div>
@@ -456,12 +458,12 @@ md(
 </div>
 """
 )
-
+ 
 ex_cols = st.columns(3)
 for col, example in zip(ex_cols, EXAMPLES):
     with col:
         st.button(example, key=f"ex_{example}", on_click=set_example, args=(example,))
-
+ 
 symptoms = st.text_area(
     "Your symptoms",
     key="symptoms_input",
@@ -469,27 +471,27 @@ symptoms = st.text_area(
     height=140,
     max_chars=2000,
 )
-
+ 
 st.caption(
     "Tip: use common symptom names separated by commas (for example "
     "\"fever, cough, sore throat\"). Spelling matters."
 )
-
+ 
 btn_col1, btn_col2 = st.columns([3, 1])
 with btn_col1:
     predict_button = st.button("Analyze Symptoms", type="primary")
 with btn_col2:
     st.button("Clear", on_click=clear_text)
-
+ 
 if predict_button:
-
+ 
     if not symptoms.strip():
         st.error("Please enter your symptoms first.")
-
+ 
     else:
         try:
             model = load_model()
-
+ 
             if not has_known_words(model, symptoms):
                 md(
                     """
@@ -500,20 +502,20 @@ if predict_button:
                 </div>
                 """
                 )
-
+ 
             else:
                 with st.spinner("Analyzing your symptoms, one moment..."):
                     prediction, confidence, classes, probabilities = predict_symptoms(
                         symptoms, model
                     )
-
+ 
                 results = sorted(
                     zip(classes, probabilities.tolist()),
                     key=lambda x: x[1],
                     reverse=True,
                 )[:5]
                 top_score = results[0][1] or 1e-9
-
+ 
                 bars = "".join(
                     f"""
                     <div class="bar-row">
@@ -523,7 +525,7 @@ if predict_button:
                     """
                     for label, score in results
                 )
-
+ 
                 md(
                     f"""
                 <div class="result">
@@ -549,16 +551,16 @@ if predict_button:
                 </div>
                 """
                 )
-
+ 
         except Exception as e:
             st.error("Unable to load or run the model.")
             st.exception(e)
-
-
+ 
+ 
 # ----------------------------------
 # HOW IT WORKS
 # ----------------------------------
-
+ 
 md(
     """
 <div id="how"></div>
@@ -577,12 +579,12 @@ md(
 </div>
 """
 )
-
-
+ 
+ 
 # ----------------------------------
 # ABOUT + DISCLAIMER
 # ----------------------------------
-
+ 
 md(
     f"""
 <div id="about"></div>
@@ -614,6 +616,11 @@ md(
   accuracy, roughly the level of random guessing. The dataset's symptoms appear to carry little
   real signal about the disease label, so this app is a deployment demo rather than a useful predictor.
 </div>
-<div class="footer">💙 {APP_TITLE} · Developed by {DEVELOPER_NAME} · <a href="{GITHUB_URL}" target="_blank" style="color:#0b4fff;text-decoration:none;font-weight:600">GitHub</a><br>Built with Python, Streamlit &amp; scikit-learn · Educational use only</div>
+<div class="footer">💙 {APP_TITLE} · Developed by {Muhammad} · <a href="{GITHUB_URL}" target="_blank" style="color:#0b4fff;text-decoration:none;font-weight:600">GitHub</a><br>Built with Python, Streamlit &amp; scikit-learn · Educational use only</div>
 """
 )
+ 
+
+
+
+
