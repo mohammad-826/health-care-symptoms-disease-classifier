@@ -617,3 +617,8 @@ md(
 </div>
 <div class="footer">💙 {APP_TITLE} · Developed by {DEVELOPER_NAME} · <a href="{GITHUB_URL}" target="_blank" style="color:#0b4fff;text-decoration:none;font-weight:600">GitHub</a><br>Built with Python, Streamlit &amp; scikit-learn · Educational use only</div>
 """
+)
+ 
+
+
+Claude finished the response
