@@ -97,7 +97,7 @@ st.markdown("""
 @st.cache_resource(show_spinner="Loading your AI model...")
 def load_model():
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID,use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 
     model = AutoModelForSequenceClassification.from_pretrained(
         MODEL_ID
