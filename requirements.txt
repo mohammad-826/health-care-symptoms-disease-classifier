@@ -1,7 +1,7 @@
 streamlit
-torch
-transformers
-sentencepiece
-protobuf
+scikit-learn
+joblib
 huggingface_hub
-tiktoken
+pandas
+numpy
+
