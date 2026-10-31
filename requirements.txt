@@ -4,4 +4,4 @@ transformers
 sentencepiece
 protobuf
 huggingface_hub
-
+tiktoken
